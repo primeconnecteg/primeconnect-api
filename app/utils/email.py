@@ -57,8 +57,9 @@ PrimeConnect Automated System
             if settings.SMTP_USE_TLS:
                 server.starttls()
                 
-            # 3. Authenticate
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            # 3. Authenticate (strip spaces from App Password if any)
+            smtp_pass = settings.SMTP_PASSWORD.replace(" ", "")
+            server.login(settings.SMTP_USERNAME, smtp_pass)
             
             # 4. Send
             server.send_message(msg)

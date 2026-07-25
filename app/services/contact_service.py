@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks
 from app.models.contact_request import ContactRequest, ContactStatus
 from app.schemas.contact import ContactCreate
 from app.utils.email import EmailService
+from app.utils.broadcaster import broadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,20 @@ class ContactService:
             await db.commit()           # Flush to Postgres and finalize transaction
             await db.refresh(db_contact) # Reload the object from DB to get the generated 'id' and 'created_at'
             
+            # Broadcast real-time SSE event to connected Admin Dashboards
+            lead_type = "Discovery Call" if "discovery call" in (contact_data.message or "").lower() else "Contact Form"
+            await broadcaster.broadcast("new_lead", {
+                "id": str(db_contact.id),
+                "name": db_contact.name,
+                "company": db_contact.company or "Not specified",
+                "email": db_contact.email,
+                "message": db_contact.message,
+                "status": "New",
+                "createdAt": db_contact.created_at.isoformat(),
+                "type": lead_type
+            })
+
             # Email Delivery is a Side Effect. 
-            # We add it to BackgroundTasks so the API instantly returns 201 Created to the user,
-            # and FastAPI executes the email sending in the background immediately afterwards.
             if background_tasks:
                 background_tasks.add_task(EmailService.send_contact_notification, db_contact)
             else:

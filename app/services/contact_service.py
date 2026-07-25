@@ -3,6 +3,7 @@ from uuid import UUID
 from typing import Sequence, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from fastapi import BackgroundTasks
 
 from app.models.contact_request import ContactRequest, ContactStatus
 from app.schemas.contact import ContactCreate
@@ -17,7 +18,7 @@ class ContactService:
     """
     
     @staticmethod
-    async def create_contact(db: AsyncSession, contact_data: ContactCreate) -> ContactRequest:
+    async def create_contact(db: AsyncSession, contact_data: ContactCreate, background_tasks: BackgroundTasks = None) -> ContactRequest:
         """
         Transforms validated Pydantic data into an ORM model and saves it.
         """
@@ -39,10 +40,12 @@ class ContactService:
             await db.refresh(db_contact) # Reload the object from DB to get the generated 'id' and 'created_at'
             
             # Email Delivery is a Side Effect. 
-            # It ONLY happens after the database safely committed.
-            # We don't await this because smtplib is synchronous, but in a production 
-            # async environment we would offload this to a background task or thread.
-            EmailService.send_contact_notification(db_contact)
+            # We add it to BackgroundTasks so the API instantly returns 201 Created to the user,
+            # and FastAPI executes the email sending in the background immediately afterwards.
+            if background_tasks:
+                background_tasks.add_task(EmailService.send_contact_notification, db_contact)
+            else:
+                EmailService.send_contact_notification(db_contact)
             
             return db_contact
         except Exception as e:

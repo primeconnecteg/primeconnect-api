@@ -11,11 +11,25 @@ class Settings(BaseSettings):
     # Application Core
     PROJECT_NAME: str = "PrimeConnect API"
     VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api"
+    API_V1_STR: str = "/api/v1"
+    
+    # CORS
+    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     
     # Security
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    JWT_ALGORITHM: str = "HS256"
+    
+    # Email / SMTP
+    SMTP_HOST: str
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM_NAME: str
+    SMTP_FROM_EMAIL: EmailStr
+    CEO_EMAIL: EmailStr
     
     # Database
     POSTGRES_USER: str
@@ -37,15 +51,7 @@ class Settings(BaseSettings):
         """
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
-    # Email Configuration
-    SMTP_TLS: bool = True
-    SMTP_PORT: Optional[int] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[EmailStr] = None
-    CEO_EMAIL: EmailStr  # We strictly require this to be a valid email
-    
+
     # Administrator Seed
     ADMIN_USERNAME: str
     ADMIN_PASSWORD: str

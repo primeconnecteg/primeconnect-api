@@ -23,8 +23,9 @@ from app.core.config import settings
 
 target_metadata = Base.metadata
 
-# Inject the dynamic database URL from our Pydantic Settings
-config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)
+# Set the database URI dynamically from Pydantic settings.
+# We must replace '%' with '%%' because ConfigParser interprets '%' as interpolation.
+config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI.replace("%", "%%"))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

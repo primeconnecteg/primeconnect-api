@@ -49,7 +49,9 @@ class Settings(BaseSettings):
         Dynamically constructs the database connection string.
         We use postgresql+asyncpg for asynchronous database operations.
         """
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        import urllib.parse
+        encoded_password = urllib.parse.quote_plus(self.POSTGRES_PASSWORD)
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{encoded_password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
 
     # Administrator Seed

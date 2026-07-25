@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # DATABASE SERVICE
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: primeconnect_db
+    restart: always # If the VPS reboots, Docker automatically restarts this container
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # Named volume ensures data survives container destruction.
+      # Containers MUST be stateless. If you delete a container, all internal files die.
+      # Volumes map internal Postgres data to a permanent folder on the Host OS.
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - primeconnect_network
+    healthcheck:
+      # This runs an internal ping inside Postgres. 
+      # The backend won't start until this returns 'healthy'.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # BACKEND API SERVICE
+  # ==========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: primeconnect_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy # Wait for the healthcheck above to pass
+    ports:
+      # Maps VPS port 8000 to Container port 8000
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - primeconnect_network
+
+# Internal Docker network. Protects our DB from the internet while allowing the backend to talk to it.
+networks:
+  primeconnect_network:
+    driver: bridge
+
+# Declares the persistent volume for PostgreSQL
+volumes:
+  postgres_data:

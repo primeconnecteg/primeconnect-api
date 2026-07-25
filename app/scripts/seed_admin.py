@@ -47,7 +47,7 @@ async def seed_admin() -> None:
             # Create the SQLAlchemy model
             new_admin = Admin(
                 username=settings.ADMIN_USERNAME,
-                hashed_password=hashed_password
+                password_hash=hashed_password
             )
             
             # Persist to database

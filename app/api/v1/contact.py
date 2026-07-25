@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, BackgroundTasks
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -22,7 +22,6 @@ router = APIRouter()
 )
 async def submit_contact_request(
     contact_in: ContactCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ) -> ContactResponse:
     """
@@ -38,8 +37,7 @@ async def submit_contact_request(
     # Notice how thin this route is! We do zero database queries here.
     # We do zero email logic here.
     # We just pass the fully validated Pydantic object to our Service Layer.
-    # We also pass FastAPI's BackgroundTasks so the email sends AFTER the response!
-    contact_out = await ContactService.create_contact(db, contact_in, background_tasks)
+    contact_out = await ContactService.create_contact(db, contact_in)
     
     # FastAPI automatically serializes this SQLAlchemy model into JSON 
     # based on the `response_model=ContactResponse` parameter above.

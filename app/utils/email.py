@@ -68,16 +68,22 @@ PrimeConnect Automated System
             
             logger.info("Email successfully sent for contact request %s", contact.id)
             
-        except smtplib.SMTPAuthenticationError:
+        except smtplib.SMTPAuthenticationError as e:
             logger.error("SMTP authentication failure: Invalid credentials.")
-        except smtplib.SMTPConnectError:
+            raise RuntimeError(f"SMTP Auth Error: {e}")
+        except smtplib.SMTPConnectError as e:
             logger.error("SMTP connection failure: Could not connect to the server.")
-        except smtplib.SMTPRecipientsRefused:
+            raise RuntimeError(f"SMTP Connect Error: {e}")
+        except smtplib.SMTPRecipientsRefused as e:
             logger.error("SMTP failure: CEO email address was refused by the server.")
-        except smtplib.SMTPServerDisconnected:
+            raise RuntimeError(f"SMTP Refused Error: {e}")
+        except smtplib.SMTPServerDisconnected as e:
             logger.error("SMTP failure: Server disconnected unexpectedly.")
-        except TimeoutError:
+            raise RuntimeError(f"SMTP Disconnect Error: {e}")
+        except TimeoutError as e:
             logger.error("SMTP failure: Connection timed out.")
+            raise RuntimeError(f"SMTP Timeout Error: {e}")
         except Exception as e:
             # Catch any other unexpected network or SSL errors
             logger.error(f"Unexpected exception during email delivery: {e}")
+            raise RuntimeError(f"Unexpected SMTP Error: {e}")

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     POSTGRES_PORT: str = "5432"
     POSTGRES_DB: str
     
+    # Database Pool Configuration
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_PRE_PING: bool = True
+    
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         """

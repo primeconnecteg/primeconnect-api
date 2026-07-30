@@ -12,7 +12,7 @@ class MeetingRequestBase(BaseModel):
     company_name: str = Field(..., alias="companyName")
     business_email: str = Field(..., alias="businessEmail")
     meeting_date: date = Field(..., alias="meetingDate")
-    comment: Optional[str] = None
+    comment: Optional[str] = Field(None, alias="comments")
 
     model_config = ConfigDict(
         populate_by_name=True,

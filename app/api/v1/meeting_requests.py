@@ -67,6 +67,7 @@ async def create_meeting_request(
 
         field_errors = {}
         first_error_msg = "Invalid payload"
+        first_field = "general"
 
         for err in val_err.errors():
             msg = err.get("msg", "Invalid value")
@@ -78,13 +79,16 @@ async def create_meeting_request(
             field_errors[field] = msg
             if first_error_msg == "Invalid payload":
                 first_error_msg = msg
+                first_field = field
 
         logger.error(f"[API] HTTP 400 Bad Request - Formatted Field Errors: {field_errors}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
+                "error": "validation_error",
+                "field": first_field,
+                "message": first_error_msg,
                 "detail": first_error_msg,
-                "error": first_error_msg,
                 "errors": field_errors,
                 "raw_payload": json_data
             }
@@ -94,29 +98,35 @@ async def create_meeting_request(
     try:
         created_request = await service.create_meeting_request(meeting_request_in, background_tasks=background_tasks)
         logger.info(f"[API] POST /api/v1/meeting-requests completed successfully for ID {created_request.id}")
-        return {
-            "message": "Discovery call request submitted successfully.",
-            "id": str(created_request.id),
-            "status": created_request.status.value if hasattr(created_request.status, 'value') else str(created_request.status)
-        }
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "message": "Discovery call request submitted successfully.",
+                "id": str(created_request.id),
+                "status": created_request.status.value if hasattr(created_request.status, 'value') else str(created_request.status)
+            }
+        )
     except HTTPException as http_exc:
         logger.error(f"[API] HTTP {http_exc.status_code} Error in MeetingRequestService: {http_exc.detail}")
+        error_type = "duplicate_request" if http_exc.status_code == status.HTTP_409_CONFLICT else "http_error"
         return JSONResponse(
             status_code=http_exc.status_code,
             content={
+                "error": error_type,
+                "message": str(http_exc.detail),
                 "detail": str(http_exc.detail),
-                "error": str(http_exc.detail),
                 "errors": {"server": str(http_exc.detail)}
             }
         )
     except Exception as exc:
-        logger.error(f"[API] Unhandled Exception in MeetingRequestService: {exc}")
+        logger.error(f"[API] Database / Processing Error in MeetingRequestService: {exc}")
         logger.exception(exc)
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
+                "error": "database_error",
+                "message": f"Server processing error: {str(exc)}",
                 "detail": f"Server processing error: {str(exc)}",
-                "error": f"Server processing error: {str(exc)}",
                 "errors": {"server": str(exc)}
             }
         )

@@ -31,10 +31,10 @@ class MeetingRequestService:
             meeting_date=request_in.meeting_date
         )
         if is_duplicate:
-            error_msg = f"Duplicate pending request: A pending discovery call request already exists for email '{request_in.business_email}' on date '{request_in.meeting_date}'."
-            logger.warning(f"[MeetingRequest] Duplicate check failed: {error_msg}")
+            error_msg = "A pending discovery call request already exists for this email and date."
+            logger.warning(f"[MeetingRequest] Duplicate check failed (HTTP 409 Conflict): {error_msg}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=error_msg
             )
         logger.info("[MeetingRequest] Duplicate check passed. No pending request exists.")
@@ -45,11 +45,11 @@ class MeetingRequestService:
             meeting_request = await self.repository.create(request_in)
             logger.info(f"[MeetingRequest] Database save successful. Created record ID '{meeting_request.id}'")
         except Exception as e:
-            logger.error(f"[MeetingRequest] Database save failed: {e}")
+            logger.error(f"[MeetingRequest] Database insertion failed: {e}")
             logger.exception(e)
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Database save failed: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database insertion failed: {str(e)}"
             )
 
         # 3. Schedule Email Notifications

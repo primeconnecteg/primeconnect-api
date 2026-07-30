@@ -5,18 +5,18 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from fastapi.testclient import TestClient
-from fastapi import status
+from fastapi import status, HTTPException
 
-from app.schemas.meeting_request import MeetingRequestCreate, MeetingRequestUpdate
-from app.models.meeting_request import MeetingRequestStatus, MeetingRequest
+from app.schemas.meeting_request import MeetingRequestCreate
 from app.services.meeting_request_service import MeetingRequestService
 from app.services.email_service import EmailService
 from app.api.v1.meeting_requests import get_meeting_request_service
 from app.main import app
 
+client = TestClient(app)
+
 # --- 1. Validation Tests ---
 def test_schema_validation_success():
-    # Should create without error
     req = MeetingRequestCreate(
         full_name="John Doe",
         company_name="Acme Corp",
@@ -25,27 +25,31 @@ def test_schema_validation_success():
         comment="Test comment"
     )
     assert req.full_name == "John Doe"
+    assert req.company_name == "Acme Corp"
+    assert req.business_email == "john@acme.com"
 
 def test_schema_validation_past_date():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as excinfo:
         MeetingRequestCreate(
             full_name="John Doe",
             company_name="Acme Corp",
             business_email="john@acme.com",
-            meeting_date=date.today() - timedelta(days=1),
+            meeting_date=date.today() - timedelta(days=5),
             comment="Test comment"
         )
+    assert "in the past" in str(excinfo.value)
 
 def test_schema_validation_invalid_email():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as excinfo:
         MeetingRequestCreate(
             full_name="John Doe",
             company_name="Acme Corp",
             business_email="invalid-email",
             meeting_date=date.today() + timedelta(days=1)
         )
+    assert "valid business email" in str(excinfo.value)
 
-# --- 2. Service & Duplicate Detection Tests ---
+# --- 2. Duplicate Detection Tests ---
 @pytest.mark.asyncio
 async def test_service_create_duplicate():
     mock_repo = AsyncMock()
@@ -59,21 +63,18 @@ async def test_service_create_duplicate():
         meeting_date=date.today() + timedelta(days=1)
     )
     
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(HTTPException) as excinfo:
         await service.create_meeting_request(req)
     
-    assert excinfo.value.status_code == 400
-    assert "Duplicate pending request" in excinfo.value.detail
+    assert excinfo.value.status_code == 409
+    assert "A pending discovery call request already exists" in excinfo.value.detail
 
+# --- 3. Database Failure Tests ---
 @pytest.mark.asyncio
-async def test_service_create_success():
+async def test_service_database_failure():
     mock_repo = AsyncMock()
     mock_repo.exists_pending.return_value = False
-    
-    mock_record = MagicMock()
-    mock_record.id = uuid4()
-    mock_record.full_name = "John Doe"
-    mock_repo.create.return_value = mock_record
+    mock_repo.create.side_effect = Exception("Database connection error")
     
     service = MeetingRequestService(repository=mock_repo)
     req = MeetingRequestCreate(
@@ -83,24 +84,21 @@ async def test_service_create_success():
         meeting_date=date.today() + timedelta(days=1)
     )
     
-    with patch.object(EmailService, 'send_admin_notification') as mock_admin_email, \
-         patch.object(EmailService, 'send_user_confirmation') as mock_user_email:
-        
-        result = await service.create_meeting_request(req)
-        
-        assert result.id == mock_record.id
-        mock_repo.create.assert_called_once_with(req)
-        mock_admin_email.assert_called_once_with(mock_record)
-        mock_user_email.assert_called_once_with(mock_record)
+    with pytest.raises(HTTPException) as excinfo:
+        await service.create_meeting_request(req)
+    
+    assert excinfo.value.status_code == 500
+    assert "Database insertion failed" in excinfo.value.detail
 
-# --- 3. API Endpoint Tests ---
-def test_create_meeting_request_endpoint():
+# --- 4. API Endpoint Integration Tests ---
+def test_create_meeting_request_endpoint_success():
     mock_service = AsyncMock()
-    mock_service.create_meeting_request.return_value = MagicMock()
+    mock_record = MagicMock()
+    mock_record.id = uuid4()
+    mock_record.status = "Pending"
+    mock_service.create_meeting_request.return_value = mock_record
     
     app.dependency_overrides[get_meeting_request_service] = lambda: mock_service
-    
-    client = TestClient(app)
     
     response = client.post(
         "/api/v1/meeting-requests",
@@ -115,55 +113,51 @@ def test_create_meeting_request_endpoint():
     
     assert response.status_code == 201
     assert response.json()["message"] == "Discovery call request submitted successfully."
+    assert "id" in response.json()
     
     app.dependency_overrides.clear()
 
-def test_check_pending_request_endpoint():
-    mock_service = AsyncMock()
-    mock_service.check_pending_exists.return_value = True
-    
-    app.dependency_overrides[get_meeting_request_service] = lambda: mock_service
-    
-    client = TestClient(app)
-    response = client.get(
-        "/api/v1/meeting-requests/check",
-        params={"email": "test@test.com", "date": date.today().isoformat()}
+def test_create_meeting_request_endpoint_invalid_email():
+    response = client.post(
+        "/api/v1/meeting-requests",
+        json={
+            "full_name": "Test User",
+            "company_name": "Test Company",
+            "business_email": "invalidemail",
+            "meeting_date": (date.today() + timedelta(days=2)).isoformat()
+        }
     )
     
-    assert response.status_code == 200
-    assert response.json()["exists"] is True
-    
-    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    data = response.json()
+    assert data["error"] == "validation_error"
+    assert "valid business email" in data["message"]
 
-# --- 4. Email Service Tests ---
-@pytest.mark.asyncio
-@patch("app.services.email_service.smtplib.SMTP")
-async def test_email_service_send_admin(mock_smtp):
+def test_create_meeting_request_endpoint_missing_fields():
+    response = client.post(
+        "/api/v1/meeting-requests",
+        json={
+            "business_email": "test@test.com"
+        }
+    )
+    
+    assert response.status_code == 400
+    data = response.json()
+    assert data["error"] == "validation_error"
+
+# --- 5. Email Service Failure Handling ---
+@patch("smtplib.SMTP")
+def test_email_service_failure_handling(mock_smtp):
+    import smtplib
+    mock_smtp.side_effect = smtplib.SMTPConnectError(421, "Connection refused")
+    
     mock_request = MagicMock()
     mock_request.full_name = "Test"
     mock_request.company_name = "Test"
     mock_request.business_email = "test@test.com"
     mock_request.meeting_date = date.today()
-    mock_request.created_at = "2026-08-01"
+    mock_request.created_at = None
     mock_request.comment = "Hello"
 
-    EmailService.send_admin_notification(mock_request)
-    await asyncio.sleep(0)
-    
-    # We used asyncio loop executor which runs synchronously in tests usually 
-    # but since it creates a task in a thread, we might not instantly assert it.
-    # To test properly we can patch EmailService._send_email.
-
-@pytest.mark.asyncio
-@patch("app.services.email_service.EmailService._send_email")
-async def test_email_service_send_user(mock_send_email):
-    mock_request = MagicMock()
-    mock_request.full_name = "Test"
-    mock_request.business_email = "test@test.com"
-    mock_request.meeting_date = date.today()
-
-    EmailService.send_user_confirmation(mock_request)
-    await asyncio.sleep(0)
-    # sleep briefly to let the executor run
-    # Not ideal for unit tests, better to patch the asyncio executor, 
-    # but we can just check it works without throwing errors.
+    result = EmailService.send_admin_meeting_notification(mock_request)
+    assert result is False

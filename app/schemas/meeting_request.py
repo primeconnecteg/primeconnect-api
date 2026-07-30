@@ -2,17 +2,22 @@ from datetime import date, datetime, timedelta
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.meeting_request import MeetingRequestStatus
 
 
 class MeetingRequestBase(BaseModel):
-    full_name: str
-    company_name: str
-    business_email: str
-    meeting_date: date
+    full_name: str = Field(..., alias="fullName")
+    company_name: str = Field(..., alias="companyName")
+    business_email: str = Field(..., alias="businessEmail")
+    meeting_date: date = Field(..., alias="meetingDate")
     comment: Optional[str] = None
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="ignore"
+    )
 
     @field_validator("full_name", mode="before")
     @classmethod
@@ -97,7 +102,7 @@ class MeetingRequestResponse(MeetingRequestBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class MeetingRequestListResponse(BaseModel):

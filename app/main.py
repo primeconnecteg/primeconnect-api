@@ -55,7 +55,8 @@ except Exception as e:
 async def lifespan(app: FastAPI):
     """
     Lifespan manager for startup and shutdown procedures.
-    Ensures non-blocking verification of database connectivity and table creation on startup.
+    Ensures non-blocking verification of database connectivity, table creation,
+    and initial admin account seeding on startup.
     """
     logger.info(f"Starting {settings.PROJECT_NAME} (v{settings.VERSION})...")
     logger.info("Verifying database connectivity and creating missing tables...")
@@ -74,6 +75,15 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database setup error on startup: {e}")
         logger.error(traceback.format_exc())
         logger.warning("Application will continue running to serve public endpoints and docs.")
+
+    # Seed initial admin account (idempotent — safe to run every startup)
+    try:
+        from app.scripts.seed_admin import seed_admin
+        await seed_admin()
+        logger.info("Admin seed check complete.")
+    except Exception as e:
+        logger.error(f"Admin seed error on startup: {e}")
+        logger.error(traceback.format_exc())
         
     yield
     

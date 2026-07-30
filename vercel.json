@@ -1,15 +1,8 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/[...catchall].py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/[...catchall].py"
+      "source": "/(.*)",
+      "destination": "/api/index.py"
     }
   ]
 }

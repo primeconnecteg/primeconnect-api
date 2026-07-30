@@ -1,12 +1,4 @@
-import logging
-import traceback
+from app.main import app
 
-logger = logging.getLogger("vercel.entrypoint")
-
-try:
-    from app.main import app
-    logger.info("Successfully imported FastAPI app instance for Vercel handler.")
-except Exception as e:
-    logger.critical(f"Failed to import app.main: {e}")
-    logger.critical(traceback.format_exc())
-    raise
+# Explicit top-level exposure for Vercel Python builder
+app = app

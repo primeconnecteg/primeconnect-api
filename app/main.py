@@ -114,20 +114,51 @@ app.add_middleware(
 # =============================================================================
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Handles HTTP exceptions (e.g. 401, 404, 403)."""
+    """Handles HTTP exceptions (e.g. 400, 401, 404, 403, 409)."""
+    error_msg = str(exc.detail) if exc.detail else "HTTP Error"
+    logger.warning(f"HTTP {exc.status_code} on {request.method} {request.url.path}: {error_msg}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail}
+        content={
+            "detail": error_msg,
+            "error": error_msg,
+            "errors": {"server": error_msg}
+        }
     )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handles Pydantic validation failures (e.g. missing fields, bad payload formats)."""
+    """
+    Formats Pydantic validation failures into clear, specific human-readable messages.
+    Provides matching 'detail', 'error', and 'errors' dict for frontend field mapping.
+    """
+    field_errors = {}
+    first_error_msg = "Invalid payload"
+
+    for error in exc.errors():
+        msg = error.get("msg", "Invalid value")
+        if msg.startswith("Value error, "):
+            msg = msg.replace("Value error, ", "", 1)
+
+        loc = error.get("loc", [])
+        field = str(loc[-1]) if loc else "general"
+
+        # Convert snake_case field to camelCase for frontend field mapping
+        parts = field.split("_")
+        camel_field = parts[0] + "".join(p.title() for p in parts[1:]) if len(parts) > 1 else field
+
+        field_errors[camel_field] = msg
+        if first_error_msg == "Invalid payload":
+            first_error_msg = msg
+
+    logger.warning(f"Validation failure on {request.method} {request.url.path}: {first_error_msg} | Field Errors: {field_errors}")
+
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_400_BAD_REQUEST,
         content={
-            "detail": "Invalid request payload",
-            "errors": exc.errors()
+            "detail": first_error_msg,
+            "error": first_error_msg,
+            "errors": field_errors
         }
     )
 

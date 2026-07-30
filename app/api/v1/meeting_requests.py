@@ -15,6 +15,10 @@ def get_meeting_request_service(db: AsyncSession = Depends(get_db)) -> MeetingRe
     repository = MeetingRequestRepository(db)
     return MeetingRequestService(repository)
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_meeting_request(
@@ -26,8 +30,18 @@ async def create_meeting_request(
     """
     Create a new discovery call request.
     """
-    await service.create_meeting_request(meeting_request_in, background_tasks=background_tasks)
-    return {"message": "Discovery call request submitted successfully."}
+    client_ip = request.client.host if request.client else "unknown"
+    logger.info(f"[API] POST /api/v1/meeting-requests received from IP {client_ip}")
+    logger.info(f"[API] Payload parsed: email='{meeting_request_in.business_email}', meeting_date='{meeting_request_in.meeting_date}'")
+
+    created_request = await service.create_meeting_request(meeting_request_in, background_tasks=background_tasks)
+    
+    logger.info(f"[API] POST /api/v1/meeting-requests completed successfully for ID {created_request.id}")
+    return {
+        "message": "Discovery call request submitted successfully.",
+        "id": str(created_request.id),
+        "status": created_request.status.value if hasattr(created_request.status, 'value') else str(created_request.status)
+    }
 
 @router.get("/check")
 async def check_pending_request(

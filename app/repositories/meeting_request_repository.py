@@ -102,7 +102,7 @@ class MeetingRequestRepository:
 
     async def exists_pending(self, email: str, meeting_date: date) -> bool:
         stmt = select(MeetingRequest).where(
-            MeetingRequest.business_email == email,
+            func.lower(MeetingRequest.business_email) == email.lower().strip(),
             MeetingRequest.meeting_date == meeting_date,
             MeetingRequest.status == MeetingRequestStatus.PENDING,
             MeetingRequest.is_deleted == False

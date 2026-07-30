@@ -62,8 +62,8 @@ async def test_service_create_duplicate():
     with pytest.raises(Exception) as excinfo:
         await service.create_meeting_request(req)
     
-    assert excinfo.value.status_code == 409
-    assert excinfo.value.detail == "A pending request already exists for this date."
+    assert excinfo.value.status_code == 400
+    assert "Duplicate pending request" in excinfo.value.detail
 
 @pytest.mark.asyncio
 async def test_service_create_success():

@@ -21,32 +21,51 @@ class MeetingRequestService:
         request_in: MeetingRequestCreate,
         background_tasks: Optional[BackgroundTasks] = None
     ) -> MeetingRequest:
-        # Check for duplicates
+        logger.info(f"[MeetingRequest] Processing creation request for email '{request_in.business_email}' on date '{request_in.meeting_date}'")
+        logger.info(f"[MeetingRequest] Validation passed: full_name='{request_in.full_name}', company_name='{request_in.company_name}'")
+
+        # 1. Duplicate Request Check
+        logger.info(f"[MeetingRequest] Executing duplicate check for email '{request_in.business_email}' on date '{request_in.meeting_date}'...")
         is_duplicate = await self.repository.exists_pending(
             email=request_in.business_email,
             meeting_date=request_in.meeting_date
         )
         if is_duplicate:
-            logger.warning(f"Duplicate meeting request attempt: {request_in.business_email} on {request_in.meeting_date}")
+            error_msg = f"Duplicate pending request: A pending discovery call request already exists for email '{request_in.business_email}' on date '{request_in.meeting_date}'."
+            logger.warning(f"[MeetingRequest] Duplicate check failed: {error_msg}")
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="A pending request already exists for this date."
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
             )
-        
-        # Create record
-        meeting_request = await self.repository.create(request_in)
-        logger.info(f"New meeting request created: {meeting_request.id}")
+        logger.info("[MeetingRequest] Duplicate check passed. No pending request exists.")
 
-        # Schedule emails via BackgroundTasks
+        # 2. Database Insertion
+        logger.info("[MeetingRequest] Saving meeting request to database...")
+        try:
+            meeting_request = await self.repository.create(request_in)
+            logger.info(f"[MeetingRequest] Database save successful. Created record ID '{meeting_request.id}'")
+        except Exception as e:
+            logger.error(f"[MeetingRequest] Database save failed: {e}")
+            logger.exception(e)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Database save failed: {str(e)}"
+            )
+
+        # 3. Schedule Email Notifications
+        logger.info(f"[MeetingRequest] Scheduling email notifications for record ID '{meeting_request.id}'...")
         if background_tasks is not None:
-            logger.info(f"Scheduling meeting request emails via BackgroundTasks for ID {meeting_request.id}")
+            logger.info("[MeetingRequest] Scheduling admin notification email via BackgroundTasks...")
             background_tasks.add_task(EmailService.send_admin_meeting_notification, meeting_request)
+            logger.info("[MeetingRequest] Scheduling user confirmation email via BackgroundTasks...")
             background_tasks.add_task(EmailService.send_user_meeting_confirmation, meeting_request)
         else:
-            logger.info(f"Executing meeting request emails inline for ID {meeting_request.id}")
+            logger.info("[MeetingRequest] Executing admin notification email inline...")
             EmailService.send_admin_meeting_notification(meeting_request)
+            logger.info("[MeetingRequest] Executing user confirmation email inline...")
             EmailService.send_user_meeting_confirmation(meeting_request)
             
+        logger.info(f"[MeetingRequest] Meeting request processing completed successfully for record ID '{meeting_request.id}'")
         return meeting_request
 
     async def get_meeting_request(self, request_id: UUID) -> MeetingRequest:

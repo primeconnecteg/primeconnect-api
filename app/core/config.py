@@ -47,8 +47,21 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         """
         Dynamically constructs the database connection string.
-        For local testing without PostgreSQL, we default to SQLite!
+        Uses Vercel Postgres in production, falls back to SQLite locally.
         """
+        import os
+        
+        # Vercel Postgres typically uses POSTGRES_URL, while Render/Railway use DATABASE_URL
+        db_url = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+        
+        if db_url:
+            # SQLAlchemy asyncpg requires postgresql+asyncpg:// instead of postgres://
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif db_url.startswith("postgresql://") and "asyncpg" not in db_url:
+                db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return db_url
+            
         return "sqlite+aiosqlite:///./local_test.db"
     
 

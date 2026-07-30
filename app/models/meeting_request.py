@@ -24,7 +24,17 @@ class MeetingRequest(Base):
     business_email = Column(String(255), nullable=False, index=True)
     meeting_date = Column(Date, nullable=False, index=True)
     comment = Column(Text, nullable=True)
-    status = Column(Enum(MeetingRequestStatus, name="meeting_request_status", create_constraint=True), default=MeetingRequestStatus.PENDING, nullable=False, index=True)
+    status = Column(
+        Enum(
+            MeetingRequestStatus,
+            name="meeting_request_status",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        default=MeetingRequestStatus.PENDING,
+        nullable=False,
+        index=True
+    )
     
     # Soft delete flag
     is_deleted = Column(Boolean, default=False, nullable=False)

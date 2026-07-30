@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     CEO_EMAIL: EmailStr
     
     # Database
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_SERVER: str
+    POSTGRES_USER: str = "user"
+    POSTGRES_PASSWORD: str = "pass"
+    POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: str = "5432"
-    POSTGRES_DB: str
+    POSTGRES_DB: str = "db"
     
     # Database Pool Configuration
     DB_POOL_SIZE: int = 10
@@ -47,11 +47,9 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         """
         Dynamically constructs the database connection string.
-        We use postgresql+asyncpg for asynchronous database operations.
+        For local testing without PostgreSQL, we default to SQLite!
         """
-        import urllib.parse
-        encoded_password = urllib.parse.quote_plus(self.POSTGRES_PASSWORD)
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{encoded_password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return "sqlite+aiosqlite:///./local_test.db"
     
 
     # Administrator Seed

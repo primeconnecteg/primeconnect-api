@@ -30,8 +30,8 @@ def upgrade() -> None:
     sa.Column('comment', sa.Text(), nullable=True),
     sa.Column('status', sa.Enum('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED', name='meeting_request_status', create_constraint=True), nullable=False),
     sa.Column('is_deleted', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_meeting_requests'))
     )
     op.create_index(op.f('ix_meeting_requests_business_email'), 'meeting_requests', ['business_email'], unique=False)

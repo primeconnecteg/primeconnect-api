@@ -19,9 +19,10 @@ class ContactService:
     """
     
     @staticmethod
-    async def create_contact(db: AsyncSession, contact_data: ContactCreate, background_tasks: BackgroundTasks = None) -> ContactRequest:
+    async def create_contact(db: AsyncSession, contact_data: ContactCreate, background_tasks: Optional[BackgroundTasks] = None) -> ContactRequest:
         """
         Transforms validated Pydantic data into an ORM model and saves it.
+        Schedules email notification via FastAPI BackgroundTasks.
         """
         # 1. Create the SQLAlchemy Model instance
         db_contact = ContactRequest(
@@ -38,7 +39,7 @@ class ContactService:
         # 3. Handle the transaction
         try:
             await db.commit()           # Flush to Postgres and finalize transaction
-            await db.refresh(db_contact) # Reload the object from DB to get the generated 'id' and 'created_at'
+            await db.refresh(db_contact) # Reload the object from DB to get generated fields
             
             # Broadcast real-time SSE event to connected Admin Dashboards
             lead_type = "Discovery Call" if "discovery call" in (contact_data.message or "").lower() else "Contact Form"
@@ -53,17 +54,20 @@ class ContactService:
                 "type": lead_type
             })
 
-            # Email Delivery is a Side Effect. 
-            if background_tasks:
+            # Queue Email Delivery via BackgroundTasks
+            if background_tasks is not None:
+                logger.info(f"Scheduling contact notification background task for ID {db_contact.id}")
                 background_tasks.add_task(EmailService.send_contact_notification, db_contact)
             else:
+                logger.info(f"Executing contact notification email inline for ID {db_contact.id}")
                 EmailService.send_contact_notification(db_contact)
             
             return db_contact
         except Exception as e:
-            await db.rollback()         # Abort transaction if anything fails (e.g. database disconnects)
+            await db.rollback()         # Abort transaction if anything fails
             logger.error(f"Failed to create contact request: {e}")
-            raise # We raise the raw exception here; the Global Exception Handler will catch it later.
+            logger.exception(e)
+            raise
 
     @staticmethod
     async def list_contacts(

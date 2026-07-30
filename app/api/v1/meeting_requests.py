@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -20,12 +20,13 @@ def get_meeting_request_service(db: AsyncSession = Depends(get_db)) -> MeetingRe
 async def create_meeting_request(
     request: Request,
     meeting_request_in: MeetingRequestCreate,
+    background_tasks: BackgroundTasks,
     service: MeetingRequestService = Depends(get_meeting_request_service)
 ):
     """
     Create a new discovery call request.
     """
-    await service.create_meeting_request(meeting_request_in)
+    await service.create_meeting_request(meeting_request_in, background_tasks=background_tasks)
     return {"message": "Discovery call request submitted successfully."}
 
 @router.get("/check")

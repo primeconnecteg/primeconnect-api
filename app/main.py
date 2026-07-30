@@ -25,7 +25,13 @@ try:
     logger.info("Loading settings...")
     from app.core.config import settings
     
-    logger.info("Loading database engine...")
+    logger.info("Loading SMTP configuration...")
+    if not settings.SMTP_HOST or not settings.SMTP_FROM_EMAIL:
+        logger.warning("SMTP configuration is incomplete. Email notifications may fail until SMTP environment variables are set.")
+    else:
+        logger.info(f"SMTP configured successfully for {settings.SMTP_HOST}:{settings.SMTP_PORT} (TLS: {settings.SMTP_USE_TLS}, Sender: '{settings.SMTP_FROM_EMAIL}')")
+
+    logger.info("Connecting to database...")
     from app.core.database import engine
     
     logger.info("Loading limiter...")
@@ -164,4 +170,10 @@ async def health_check():
 # =============================================================================
 logger.info(f"Registering API routes under prefix '{settings.API_V1_STR}'...")
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+if settings.API_V1_STR.startswith("/api"):
+    v1_fallback = settings.API_V1_STR[4:]
+    logger.info(f"Registering fallback API routes under prefix '{v1_fallback}'...")
+    app.include_router(api_router, prefix=v1_fallback)
+
 logger.info("Application started successfully.")

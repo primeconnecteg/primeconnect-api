@@ -1,5 +1,4 @@
-import asyncio
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,9 +20,10 @@ router = APIRouter()
 )
 async def submit_contact_request(
     contact_in: ContactCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ) -> ContactResponse:
-    contact_out = await ContactService.create_contact(db, contact_in)
+    contact_out = await ContactService.create_contact(db, contact_in, background_tasks=background_tasks)
     return contact_out
 
 

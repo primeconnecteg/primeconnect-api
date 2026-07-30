@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 import logging
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 
 from app.models.meeting_request import MeetingRequest, MeetingRequestStatus
 from app.repositories.meeting_request_repository import MeetingRequestRepository
@@ -16,7 +16,11 @@ class MeetingRequestService:
     def __init__(self, repository: MeetingRequestRepository):
         self.repository = repository
 
-    async def create_meeting_request(self, request_in: MeetingRequestCreate) -> MeetingRequest:
+    async def create_meeting_request(
+        self,
+        request_in: MeetingRequestCreate,
+        background_tasks: Optional[BackgroundTasks] = None
+    ) -> MeetingRequest:
         # Check for duplicates
         is_duplicate = await self.repository.exists_pending(
             email=request_in.business_email,
@@ -33,12 +37,15 @@ class MeetingRequestService:
         meeting_request = await self.repository.create(request_in)
         logger.info(f"New meeting request created: {meeting_request.id}")
 
-        # Send emails
-        try:
-            EmailService.send_admin_notification(meeting_request)
-            EmailService.send_user_confirmation(meeting_request)
-        except Exception as e:
-            logger.error(f"Failed to queue emails for meeting request {meeting_request.id}: {e}")
+        # Schedule emails via BackgroundTasks
+        if background_tasks is not None:
+            logger.info(f"Scheduling meeting request emails via BackgroundTasks for ID {meeting_request.id}")
+            background_tasks.add_task(EmailService.send_admin_meeting_notification, meeting_request)
+            background_tasks.add_task(EmailService.send_user_meeting_confirmation, meeting_request)
+        else:
+            logger.info(f"Executing meeting request emails inline for ID {meeting_request.id}")
+            EmailService.send_admin_meeting_notification(meeting_request)
+            EmailService.send_user_meeting_confirmation(meeting_request)
             
         return meeting_request
 

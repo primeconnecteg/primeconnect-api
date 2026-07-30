@@ -46,9 +46,8 @@ Comment:
         # But to avoid blocking, we can use a small wrapper in the caller. 
         # For simplicity, we just send it. If we are in an async endpoint, 
         # it's better to run it in a threadpool executor.
-        import asyncio
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, EmailService._send_email, msg)
+        import threading
+        threading.Thread(target=EmailService._send_email, args=(msg,), daemon=True).start()
 
     @staticmethod
     def send_user_confirmation(request: MeetingRequest) -> None:
@@ -73,6 +72,5 @@ Prime Connect EG
 """
         msg.set_content(body)
         
-        import asyncio
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, EmailService._send_email, msg)
+        import threading
+        threading.Thread(target=EmailService._send_email, args=(msg,), daemon=True).start()

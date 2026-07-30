@@ -8,11 +8,11 @@ from app.models.meeting_request import MeetingRequestStatus
 
 
 class MeetingRequestBase(BaseModel):
-    full_name: str = Field(..., min_length=3, max_length=100)
+    full_name: str = Field(..., min_length=2, max_length=100)
     company_name: str = Field(..., max_length=150)
     business_email: EmailStr
     meeting_date: date
-    comment: str = Field(..., min_length=1000, max_length=5000)
+    comment: Optional[str] = Field(None, max_length=5000)
 
     @field_validator("meeting_date")
     @classmethod

@@ -55,17 +55,23 @@ except Exception as e:
 async def lifespan(app: FastAPI):
     """
     Lifespan manager for startup and shutdown procedures.
-    Ensures non-blocking verification of database connectivity on startup.
+    Ensures non-blocking verification of database connectivity and table creation on startup.
     """
     logger.info(f"Starting {settings.PROJECT_NAME} (v{settings.VERSION})...")
-    logger.info("Verifying database connectivity...")
+    logger.info("Verifying database connectivity and creating missing tables...")
     
     try:
+        from app.core.database import Base
+        from app.models.contact_request import ContactRequest
+        from app.models.meeting_request import MeetingRequest
+        from app.models.admin import Admin
+
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info(f"Database connected successfully ({engine.url.get_backend_name()}).")
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info(f"Database connected and tables created/verified successfully ({engine.url.get_backend_name()}).")
     except Exception as e:
-        logger.error(f"Database connection warning on startup: {e}")
+        logger.error(f"Database setup error on startup: {e}")
         logger.error(traceback.format_exc())
         logger.warning("Application will continue running to serve public endpoints and docs.")
         

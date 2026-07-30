@@ -2,17 +2,17 @@ import uuid
 import enum
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, Enum, Uuid
+from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, Uuid
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 
 class MeetingRequestStatus(str, enum.Enum):
-    PENDING = "Pending"
-    APPROVED = "Approved"
-    REJECTED = "Rejected"
-    COMPLETED = "Completed"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
 
 
 class MeetingRequest(Base):
@@ -24,18 +24,9 @@ class MeetingRequest(Base):
     business_email = Column(String(255), nullable=False, index=True)
     meeting_date = Column(Date, nullable=False, index=True)
     comment = Column(Text, nullable=True)
-    status = Column(
-        Enum(
-            MeetingRequestStatus,
-            name="meeting_request_status",
-            create_type=False,
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        default=MeetingRequestStatus.PENDING,
-        nullable=False,
-        index=True
-    )
-    
+    # Use String instead of Enum to avoid asyncpg enum type casting issues
+    status = Column(String(20), default=MeetingRequestStatus.PENDING.value, nullable=False, index=True)
+
     # Soft delete flag
     is_deleted = Column(Boolean, default=False, nullable=False)
 
@@ -43,4 +34,4 @@ class MeetingRequest(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     def __repr__(self) -> str:
-        return f"<MeetingRequest {self.business_email} - {self.meeting_date} [{self.status.value}]>"
+        return f"<MeetingRequest {self.business_email} - {self.meeting_date} [{self.status}]>"

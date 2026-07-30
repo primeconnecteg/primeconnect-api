@@ -20,7 +20,7 @@ class MeetingRequestRepository:
             business_email=request_in.business_email,
             meeting_date=request_in.meeting_date,
             comment=request_in.comment,
-            status=MeetingRequestStatus.PENDING
+            status="PENDING"
         )
         self.session.add(db_obj)
         await self.session.commit()
@@ -37,7 +37,7 @@ class MeetingRequestRepository:
         *,
         skip: int = 0,
         limit: int = 10,
-        status: Optional[MeetingRequestStatus] = None,
+        status: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
         company_name: Optional[str] = None,
@@ -104,7 +104,7 @@ class MeetingRequestRepository:
         stmt = select(MeetingRequest).where(
             func.lower(MeetingRequest.business_email) == email.lower().strip(),
             MeetingRequest.meeting_date == meeting_date,
-            MeetingRequest.status == MeetingRequestStatus.PENDING,
+            MeetingRequest.status == "PENDING",
             MeetingRequest.is_deleted == False
         ).limit(1)
         result = await self.session.execute(stmt)

@@ -92,12 +92,12 @@ class MeetingRequestCreate(MeetingRequestBase):
 
 
 class MeetingRequestUpdate(BaseModel):
-    status: MeetingRequestStatus
+    status: str
 
 
 class MeetingRequestResponse(MeetingRequestBase):
     id: UUID
-    status: MeetingRequestStatus
+    status: str
     is_deleted: bool
     created_at: datetime
     updated_at: datetime

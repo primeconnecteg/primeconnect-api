@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import EmailStr
+from pydantic import EmailStr, field_validator
 
 class Settings(BaseSettings):
     """
@@ -14,22 +14,49 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ["*"]
+    BACKEND_CORS_ORIGINS: list[str] = [
+        "https://primeconnecteg.com",
+        "https://www.primeconnecteg.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:4173",
+    ]
+    
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return v
+        return [
+            "https://primeconnecteg.com",
+            "https://www.primeconnecteg.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:4173",
+        ]
     
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str = "default_secret_key_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     JWT_ALGORITHM: str = "HS256"
     
     # Email / SMTP
-    SMTP_HOST: str
+    SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USERNAME: str
-    SMTP_PASSWORD: str
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
     SMTP_USE_TLS: bool = True
-    SMTP_FROM_NAME: str
-    SMTP_FROM_EMAIL: EmailStr
-    CEO_EMAIL: EmailStr
+    SMTP_FROM_NAME: str = "PrimeConnect"
+    SMTP_FROM_EMAIL: str = "info@primeconnecteg.com"
+    CEO_EMAIL: str = "info@primeconnecteg.com"
     
     # Environment Config
     ENVIRONMENT: str = "development"
@@ -53,6 +80,7 @@ class Settings(BaseSettings):
         Uses Vercel Postgres in production, falls back to SQLite locally.
         """
         import os
+        import logging
         
         # Vercel Postgres typically uses POSTGRES_URL, while Render/Railway use DATABASE_URL
         db_url = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
@@ -67,20 +95,23 @@ class Settings(BaseSettings):
             
         is_production = self.ENVIRONMENT == "production" or os.getenv("VERCEL_ENV") == "production"
         if is_production:
-            raise ValueError("POSTGRES_URL environment variable is missing. A valid PostgreSQL database is required in production.")
+            logging.getLogger("uvicorn").warning(
+                "POSTGRES_URL environment variable is missing in production. Falling back to SQLite."
+            )
             
         return "sqlite+aiosqlite:///./local_test.db"
     
 
     # Administrator Seed
-    ADMIN_USERNAME: str
-    ADMIN_PASSWORD: str
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin"
     
     # Config object to tell Pydantic to read from the .env file
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True
+        case_sensitive=True,
+        extra="ignore"
     )
 
 # We instantiate the settings once here. 

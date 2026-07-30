@@ -1,6 +1,5 @@
 import uuid
-from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,10 +14,9 @@ class Admin(Base, TimestampMixin):
     """
     __tablename__ = "admins"  # Plural naming convention
 
-    # UUID(as_uuid=True) explicitly tells SQLAlchemy to use PostgreSQL's native
-    # UUID column type and to map it to Python's uuid.UUID object automatically.
+    # Uuid(as_uuid=True) provides database-agnostic UUID column support (Postgres, SQLite, etc.)
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
     )

@@ -1,4 +1,5 @@
 import logging
+import traceback
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
@@ -9,13 +10,6 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 
-from app.core.config import settings
-from app.core.database import engine
-from app.core.limiter import limiter
-from app.api.v1.router import api_router
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-
 # =============================================================================
 # 1. LOGGING CONFIGURATION
 # =============================================================================
@@ -23,7 +17,30 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.main")
+
+logger.info("Initializing FastAPI Backend Application...")
+
+try:
+    logger.info("Loading settings...")
+    from app.core.config import settings
+    
+    logger.info("Loading database engine...")
+    from app.core.database import engine
+    
+    logger.info("Loading limiter...")
+    from app.core.limiter import limiter
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    
+    logger.info("Loading API routers...")
+    from app.api.v1.router import api_router
+    logger.info("All modules loaded successfully.")
+    
+except Exception as e:
+    logger.critical(f"FATAL: Application import failed during startup: {e}")
+    logger.critical(traceback.format_exc())
+    raise
 
 # =============================================================================
 # 2. APPLICATION LIFESPAN
@@ -31,28 +48,29 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Context manager that defines the startup and shutdown lifecycle of the FastAPI app.
-    Everything before 'yield' runs exactly once when the server boots.
-    Everything after 'yield' runs exactly once when the server shuts down.
+    Lifespan manager for startup and shutdown procedures.
+    Ensures non-blocking verification of database connectivity on startup.
     """
-    logger.info(f"Starting {settings.PROJECT_NAME}...")
+    logger.info(f"Starting {settings.PROJECT_NAME} (v{settings.VERSION})...")
+    logger.info("Verifying database connectivity...")
     
-    # Startup: Verify Database Connection
     try:
-        # engine.begin() attempts a physical connection to the database
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info(f"Successfully connected to the database ({engine.url.get_backend_name()}).")
+        logger.info(f"Database connected successfully ({engine.url.get_backend_name()}).")
     except Exception as e:
-        logger.critical(f"Failed to connect to the database: {e}")
-        # We do not crash the app here, but Kubernetes would see health checks fail.
+        logger.error(f"Database connection warning on startup: {e}")
+        logger.error(traceback.format_exc())
+        logger.warning("Application will continue running to serve public endpoints and docs.")
         
     yield
     
-    # Shutdown: Clean up resources
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
-    await engine.dispose()
-    logger.info("Database connection pool successfully closed.")
+    try:
+        await engine.dispose()
+        logger.info("Database connection pool closed successfully.")
+    except Exception as e:
+        logger.error(f"Error disposing database engine: {e}")
 
 # =============================================================================
 # 3. FASTAPI INITIALIZATION
@@ -76,6 +94,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # =============================================================================
 # 4. CORS MIDDLEWARE
 # =============================================================================
+logger.info(f"Configuring CORS middleware with origins: {settings.BACKEND_CORS_ORIGINS}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -89,7 +108,7 @@ app.add_middleware(
 # =============================================================================
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Handles deliberate HTTP exceptions (like 401 Unauthorized or 404 Not Found)."""
+    """Handles HTTP exceptions (e.g. 401, 404, 403)."""
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}
@@ -97,7 +116,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handles Pydantic validation failures (e.g. missing fields, bad email format)."""
+    """Handles Pydantic validation failures (e.g. missing fields, bad payload formats)."""
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -109,11 +128,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """
-    Catch-all for completely unexpected server errors (e.g. database disconnects mid-query, divide by zero).
-    We log the full stack trace securely to the server, but return a generic 500 error to the client.
-    This strictly prevents leaking database schemas or internal variables to potential hackers.
+    Catch-all for unhandled server exceptions. Logs complete traceback to server logs.
     """
-    logger.error(f"Unhandled Exception: {str(exc)}", exc_info=True)
+    logger.error(f"Unhandled Exception on {request.method} {request.url.path}: {str(exc)}")
+    logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An unexpected internal server error occurred."}
@@ -124,16 +142,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 # =============================================================================
 @app.get("/", tags=["Health"])
 async def root():
-    """Minimal root endpoint to confirm the API is routing traffic."""
+    """Root endpoint returning basic metadata."""
     return {
         "app": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "docs": "/docs"
+        "docs": "/docs",
+        "health": "/health"
     }
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint for Docker / Kubernetes liveness probes."""
+    """Health check endpoint for Vercel / Docker liveness probes."""
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -143,6 +162,6 @@ async def health_check():
 # =============================================================================
 # 7. ROUTER REGISTRATION
 # =============================================================================
-# Attach the massive API router tree (which contains /auth, /admin, and /contact)
-# to the root FastAPI application under the /api/v1 prefix.
+logger.info(f"Registering API routes under prefix '{settings.API_V1_STR}'...")
 app.include_router(api_router, prefix=settings.API_V1_STR)
+logger.info("Application started successfully.")

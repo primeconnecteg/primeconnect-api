@@ -1,7 +1,6 @@
 import enum
 import uuid
-from sqlalchemy import String, Text, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import String, Text, Enum, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -24,9 +23,9 @@ class ContactRequest(Base, TimestampMixin):
     """
     __tablename__ = "contact_requests"  # Plural naming convention
 
-    # UUID(as_uuid=True) makes the PostgreSQL column type explicit.
+    # Uuid(as_uuid=True) provides database-agnostic UUID column support
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
     )

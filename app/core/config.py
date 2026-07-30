@@ -1,6 +1,11 @@
+import os
+import logging
+import urllib.parse
 from typing import Any, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import EmailStr, field_validator
+
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     """
@@ -44,29 +49,29 @@ class Settings(BaseSettings):
         ]
     
     # Security
-    SECRET_KEY: str = "default_secret_key_change_in_production"
+    SECRET_KEY: str = "supersecretkey_please_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     JWT_ALGORITHM: str = "HS256"
     
     # Email / SMTP
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USERNAME: str = ""
-    SMTP_PASSWORD: str = ""
+    SMTP_USERNAME: str = "testprimeconnect@gmail.com"
+    SMTP_PASSWORD: str = "fjbk zewz bain szjl"
     SMTP_USE_TLS: bool = True
     SMTP_FROM_NAME: str = "PrimeConnect"
-    SMTP_FROM_EMAIL: str = "info@primeconnecteg.com"
-    CEO_EMAIL: str = "info@primeconnecteg.com"
+    SMTP_FROM_EMAIL: str = "testprimeconnect@gmail.com"
+    CEO_EMAIL: str = "testprimeconnect@gmail.com"
     
     # Environment Config
     ENVIRONMENT: str = "development"
     
     # Database
-    POSTGRES_USER: str = "user"
-    POSTGRES_PASSWORD: str = "pass"
-    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_USER: str = "postgres.roojvxjqxdiulycpqzrt"
+    POSTGRES_PASSWORD: str = "Admin#@2@26#"
+    POSTGRES_SERVER: str = "aws-0-eu-north-1.pooler.supabase.com"
     POSTGRES_PORT: str = "5432"
-    POSTGRES_DB: str = "db"
+    POSTGRES_DB: str = "postgres"
     
     # Database Pool Configuration
     DB_POOL_SIZE: int = 10
@@ -77,14 +82,32 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         """
         Dynamically constructs the database connection string.
-        Uses Vercel Postgres in production, falls back to SQLite locally.
+        Supports full POSTGRES_URL/DATABASE_URL or individual POSTGRES_* environment variables.
+        URL-encodes the password to support special characters safely.
         """
-        import os
-        import logging
-        
-        # Vercel Postgres typically uses POSTGRES_URL, while Render/Railway use DATABASE_URL
+        # 1. Direct connection string check
         db_url = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
         
+        # 2. Individual POSTGRES_* environment variables check
+        if not db_url:
+            user = os.getenv("POSTGRES_USER") or self.POSTGRES_USER
+            password = os.getenv("POSTGRES_PASSWORD") or self.POSTGRES_PASSWORD
+            server = os.getenv("POSTGRES_SERVER") or self.POSTGRES_SERVER
+            port = os.getenv("POSTGRES_PORT") or self.POSTGRES_PORT
+            db = os.getenv("POSTGRES_DB") or self.POSTGRES_DB
+            
+            # If explicit POSTGRES_SERVER or user/db env vars are set
+            has_pg_env = bool(
+                os.getenv("POSTGRES_SERVER") or 
+                os.getenv("POSTGRES_USER") or 
+                os.getenv("POSTGRES_DB") or 
+                os.getenv("POSTGRES_PASSWORD")
+            )
+            
+            if has_pg_env or (server and server != "localhost"):
+                encoded_password = urllib.parse.quote_plus(password) if password else ""
+                db_url = f"postgresql+asyncpg://{user}:{encoded_password}@{server}:{port}/{db}"
+
         if db_url:
             # SQLAlchemy asyncpg requires postgresql+asyncpg:// instead of postgres://
             if db_url.startswith("postgres://"):
@@ -93,10 +116,10 @@ class Settings(BaseSettings):
                 db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return db_url
             
-        is_production = self.ENVIRONMENT == "production" or os.getenv("VERCEL_ENV") == "production"
+        is_production = self.ENVIRONMENT == "production" or os.getenv("VERCEL_ENV") in ("production", "preview")
         if is_production:
-            logging.getLogger("uvicorn").warning(
-                "POSTGRES_URL environment variable is missing in production. Falling back to SQLite."
+            logger.warning(
+                "Neither POSTGRES_URL nor POSTGRES_* environment variables were set in production. Falling back to SQLite."
             )
             
         return "sqlite+aiosqlite:///./local_test.db"
@@ -104,7 +127,7 @@ class Settings(BaseSettings):
 
     # Administrator Seed
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "admin"
+    ADMIN_PASSWORD: str = "Admin#@2@26#"
     
     # Config object to tell Pydantic to read from the .env file
     model_config = SettingsConfigDict(
@@ -114,6 +137,7 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-# We instantiate the settings once here. 
-# Other modules will import this singleton `settings` object.
+# Instantiate settings singleton with logging
+logger.info("Loading application settings...")
 settings = Settings()
+logger.info(f"Settings loaded successfully for project '{settings.PROJECT_NAME}' in '{settings.ENVIRONMENT}' environment.")

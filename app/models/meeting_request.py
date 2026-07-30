@@ -2,8 +2,7 @@ import uuid
 import enum
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, Enum, Uuid
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -19,7 +18,7 @@ class MeetingRequestStatus(str, enum.Enum):
 class MeetingRequest(Base):
     __tablename__ = "meeting_requests"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     full_name = Column(String(100), nullable=False)
     company_name = Column(String(150), nullable=False)
     business_email = Column(String(255), nullable=False, index=True)

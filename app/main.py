@@ -11,7 +11,10 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
+from app.core.limiter import limiter
 from app.api.v1.router import api_router
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # =============================================================================
 # 1. LOGGING CONFIGURATION
@@ -66,6 +69,9 @@ app = FastAPI(
     docs_url="/docs",  # Swagger UI endpoint
     redoc_url="/redoc" # ReDoc endpoint
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # =============================================================================
 # 4. CORS MIDDLEWARE

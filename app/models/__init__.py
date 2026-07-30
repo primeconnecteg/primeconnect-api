@@ -4,3 +4,4 @@
 from app.core.database import Base
 from app.models.admin import Admin
 from app.models.contact_request import ContactRequest, ContactStatus
+from app.models.meeting_request import MeetingRequest, MeetingRequestStatus

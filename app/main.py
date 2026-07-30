@@ -39,12 +39,12 @@ async def lifespan(app: FastAPI):
     
     # Startup: Verify Database Connection
     try:
-        # engine.begin() attempts a physical connection to PostgreSQL
+        # engine.begin() attempts a physical connection to the database
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("Successfully connected to the PostgreSQL database.")
+        logger.info(f"Successfully connected to the database ({engine.url.get_backend_name()}).")
     except Exception as e:
-        logger.critical(f"Failed to connect to the PostgreSQL database: {e}")
+        logger.critical(f"Failed to connect to the database: {e}")
         # We do not crash the app here, but Kubernetes would see health checks fail.
         
     yield

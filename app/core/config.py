@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: EmailStr
     CEO_EMAIL: EmailStr
     
+    # Environment Config
+    ENVIRONMENT: str = "development"
+    
     # Database
     POSTGRES_USER: str = "user"
     POSTGRES_PASSWORD: str = "pass"
@@ -61,6 +64,10 @@ class Settings(BaseSettings):
             elif db_url.startswith("postgresql://") and "asyncpg" not in db_url:
                 db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return db_url
+            
+        is_production = self.ENVIRONMENT == "production" or os.getenv("VERCEL_ENV") == "production"
+        if is_production:
+            raise ValueError("POSTGRES_URL environment variable is missing. A valid PostgreSQL database is required in production.")
             
         return "sqlite+aiosqlite:///./local_test.db"
     

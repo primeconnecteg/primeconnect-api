@@ -18,10 +18,19 @@ logger = logging.getLogger(__name__)
 # ==========================================
 # 1. THE ASYNC ENGINE
 # ==========================================
-engine = create_async_engine(
-    url=settings.SQLALCHEMY_DATABASE_URI,
-    echo=False,
-)
+_engine_kwargs = {
+    "url": settings.SQLALCHEMY_DATABASE_URI,
+    "echo": False,
+}
+
+if settings.SQLALCHEMY_DATABASE_URI.startswith("postgresql"):
+    _engine_kwargs.update({
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_pre_ping": settings.DB_POOL_PRE_PING,
+    })
+
+engine = create_async_engine(**_engine_kwargs)
 
 # ==========================================
 # 2. THE ASYNC SESSION FACTORY
@@ -80,7 +89,7 @@ async def check_database_connection() -> None:
         # Use connect() to verify connectivity without starting a transaction
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("Successfully connected to the PostgreSQL database.")
+        logger.info(f"Successfully connected to the database ({engine.url.get_backend_name()}).")
     except SQLAlchemyError as e:
         logger.critical(f"Database connection failed during startup: {e}")
         raise  # Fail fast!

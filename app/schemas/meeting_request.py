@@ -12,7 +12,7 @@ class MeetingRequestBase(BaseModel):
     company_name: str = Field(..., max_length=150)
     business_email: EmailStr
     meeting_date: date
-    comment: Optional[str] = Field(None, max_length=5000)
+    comment: str = Field(..., min_length=1000, max_length=5000)
 
     @field_validator("meeting_date")
     @classmethod
